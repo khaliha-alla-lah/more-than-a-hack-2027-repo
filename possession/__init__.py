@@ -1,0 +1,1 @@
+"""Frame-aligned possession prediction."""
