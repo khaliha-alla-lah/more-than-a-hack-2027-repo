@@ -1,5 +1,75 @@
 # Possession pipeline
 
+## Integrated motion candidate
+
+Use the existing pinned requirements in a Python 3.14 environment.
+The candidate includes the required SAM modules under
+`possession/vendor/sam/`, with license and source attribution.
+
+```powershell
+$data = '../More Than A Hack 2027 - Initial Challenge - Dataset'
+.venv/Scripts/python.exe -B -m possession.candidate_cli --fit --data $data --diagnostics data/motion-candidate/diagnostics.csv
+.venv/Scripts/python.exe -B evaluation/validate_submission.py data/motion-candidate/submission.csv
+```
+
+Omit `--fit` to regenerate from saved weights. Use `--output` to choose
+a destination and `--model-dir` to select a model bundle. The manifest
+records the three model files and checksums. Training publishes a new
+manifest after all model files have been saved.
+
+`candidate.py` owns feature preparation, seven-frame velocity estimation,
+and inference. `candidate_training.py` owns the benchmarked training
+recipe. `candidate_cli.py` handles external data, model storage, validated
+CSV export and diagnostics. `candidate_eval.py` runs whole-match folds.
+All use the existing Tracking adapters. Diagnostic rows sample regular
+intervals, predicted transitions and decoder/frame-classifier disagreements.
+
+```powershell
+.venv/Scripts/python.exe -B -m possession.candidate_eval --data $data --matches J03WMX --output data/evaluation/motion-j03wmx.json
+```
+
+Omit `--matches` for all seven folds. Each fold excludes its evaluation
+match from all training stages. The development protocol uses two fixed
+corruption seeds.
+
+## Comparing tracking corruption and public fork components
+
+From the repository root, run the following commands with the existing environment.
+
+```powershell
+$data = '../More Than A Hack 2027 - Initial Challenge - Dataset'
+.venv/Scripts/python.exe -B -m possession.experiments --data $data
+.venv/Scripts/python.exe -B -m possession.short_audit --data $data
+.venv/Scripts/python.exe -B -m possession.fork_comparison --data $data
+```
+
+The first command evaluates fixed configurations with each DFL match excluded
+from training in turn. It uses the same corrupted inputs for every method in a
+fold and writes metrics after each completed match. Correlated jitter uses
+an experimental AR(1) coefficient of 0.9. Measure its fit to the target tracking
+before adopting it for training. The short-spell audit uses the frozen model
+and original holdout corruption to compare ball visibility, team probabilities,
+and interval overlap before and after decoding.
+
+The third command expects two public checkouts in `data/`. Use Blaze2fire's
+`solution` branch at `2d9f95aad4f081ebc2e82397d208ff9c70646fb3` in
+`data/fork-blaze`, and SAM Analytics' `main` branch at
+`3b800fb11184a57dc84baab819c21142fbc57513` in `data/fork-sam`.
+It runs Blaze2fire's rules and HMM and tests SAM's duration-constrained decoder
+with our rules probabilities. These scores cover the named components only.
+
+Reports are written to `data/experiments/`. The short-spell audit loads the
+baseline from `data/frozen-candidate/`, which should contain the model files
+and their original benchmark manifest.
+
+To train and export the experimental full-feature candidate:
+
+```powershell
+.venv/Scripts/python.exe -B -m possession.experiments --data $data --fit-candidate correlated
+.venv/Scripts/python.exe -B -m possession --data $data --model-dir data/experiments/candidate --output data/experiments/candidate.csv
+.venv/Scripts/python.exe -B evaluation/validate_submission.py data/experiments/candidate.csv
+```
+
 The pipeline produces one label per tactical frame. The learned entry estimates whether play is live and which team has control, then decodes the sequence across each half. The rules entry uses the same tracking features and decoder.
 
 ## Run locally
