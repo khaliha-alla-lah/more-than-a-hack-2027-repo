@@ -1,22 +1,13 @@
 """Read the public IDSSE tracking XML and retain its labels separately."""
 
-from pathlib import Path
 from xml.etree import ElementTree as ET
 
 import numpy as np
 
 from .tracking import Tracking
+from .external import MATCHES, REVISION, paths
 
 HALVES = ("firstHalf", "secondHalf")
-REVISION = "a715a38dfbaf5f58e431727c2b78d174101a703c"
-MATCHES = ("J03WMX", "J03WN1", "J03WOH", "J03WOY", "J03WPY", "J03WQQ", "J03WR9")
-
-
-def paths(directory, match):
-    division = "000001" if match in MATCHES[:2] else "000002"
-    suffix = f"DFL-COM-{division}_DFL-MAT-{match}.xml"
-    return (Path(directory) / f"DFL_02_01_matchinformation_{suffix}",
-            Path(directory) / f"DFL_04_03_positions_raw_observed_{suffix}")
 
 
 def load(directory, match):

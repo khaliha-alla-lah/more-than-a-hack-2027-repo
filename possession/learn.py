@@ -3,17 +3,26 @@
 import numpy as np
 
 from .decode import combine
+from .schema import COLLECTIVE_NAMES, FEATURE_NAMES
 from .tracking import Tracking
 
+TRAINING_PARAMS = dict(verbosity=-1, learning_rate=0.08, num_leaves=23,
+                       min_data_in_leaf=120, force_col_wise=True, deterministic=True,
+                       num_threads=4, seed=417)
+NUM_BOOST_ROUND = 100
 
-def matrix(features):
-    return np.ascontiguousarray(np.column_stack(list(features.values())), dtype=np.float32)
+
+def matrix(features, names=FEATURE_NAMES):
+    missing = set(names) - features.keys()
+    extra = features.keys() - set(names)
+    if missing or extra:
+        raise ValueError(f"Feature schema mismatch: missing={sorted(missing)}, extra={sorted(extra)}")
+    return np.ascontiguousarray(np.column_stack([features[name] for name in names]),
+                                dtype=np.float32)
 
 
 def collective_matrix(features):
-    names = ("movement_h", "movement_a", "centroid_speed_h", "centroid_speed_a",
-             "spread_h", "spread_a")
-    return matrix({name: features[name] for name in names})
+    return matrix({name: features[name] for name in COLLECTIVE_NAMES}, COLLECTIVE_NAMES)
 
 
 def gaps(observed):
@@ -45,21 +54,19 @@ def degrade(tracking, missing_lengths, seed, stress=False):
 def fit(x, y, joint=False, status=None):
     import lightgbm as lgb
 
-    params = dict(verbosity=-1, learning_rate=0.08, num_leaves=23,
-                  min_data_in_leaf=120, force_col_wise=True, deterministic=True,
-                  num_threads=4, seed=417)
+    params = TRAINING_PARAMS.copy()
     known = y < 3
     if joint:
         dataset = lgb.Dataset(x[known], label=y[known])
         return (lgb.train(dict(params, objective="multiclass", num_class=3), dataset,
-                          num_boost_round=100),)
+                          num_boost_round=NUM_BOOST_ROUND),)
     live = y < 2
     status_input = x if status is None else status
     status_data = lgb.Dataset(status_input[known], label=live[known])
     control_data = lgb.Dataset(x[live], label=y[live] == 0)
     params["objective"] = "binary"
-    return (lgb.train(params, status_data, num_boost_round=100),
-            lgb.train(params, control_data, num_boost_round=100))
+    return (lgb.train(params, status_data, num_boost_round=NUM_BOOST_ROUND),
+            lgb.train(params, control_data, num_boost_round=NUM_BOOST_ROUND))
 
 
 def predict(models, x, status=None):

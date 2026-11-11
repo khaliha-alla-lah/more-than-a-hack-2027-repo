@@ -1,7 +1,6 @@
-"""Choose on one development match, then report results on two untouched games."""
+"""Reconstruct the historical split; reporting games have already informed development."""
 
-import json
-from pathlib import Path
+import hashlib
 
 import numpy as np
 
@@ -12,7 +11,9 @@ from starter.baseline import smooth
 from . import dfl
 from .decode import decode, rules
 from .features import extract
-from .learn import collective_matrix, degrade, fit, gaps, matrix, predict
+from .learn import (NUM_BOOST_ROUND, TRAINING_PARAMS, collective_matrix,
+                    degrade, fit, gaps, matrix, predict)
+from .release import check_destination, fingerprint, save_release
 
 TRAIN = ("J03WMX", "J03WOH", "J03WPY", "J03WR9")
 DEV = "J03WOY"
@@ -87,7 +88,13 @@ def score(halves, models=None, penalties=None, reference=None, collective=False)
                         np.concatenate(visibility))
 
 
-def fit_and_evaluate(directory, tactical, output):
+def fit_and_evaluate(directory, tactical, output, tactical_inputs=None):
+    check_destination(output)
+    # Fail on all missing files before starting an expensive partial reconstruction.
+    inputs = [path for match in dfl.MATCHES for path in dfl.paths(directory, match)]
+    missing_files = [str(path) for path in inputs if not path.is_file()]
+    if missing_files:
+        raise FileNotFoundError("Missing DFL inputs:\n" + "\n".join(missing_files))
     missing = np.concatenate([
         gaps(np.isfinite(tactical.ball[start:end + 1]).all(axis=1))
         for _, start, end in half_video_blocks(GAME)
@@ -148,17 +155,28 @@ def fit_and_evaluate(directory, tactical, output):
             print(match, scenario, {key: round(row["spell_f1"], 4) for key, row in result.items()},
                   flush=True)
 
-    output = Path(output)
-    output.mkdir(parents=True, exist_ok=True)
-    model_files = []
-    for index, model in enumerate(models[name]):
-        filename = f"{name}-{index}.txt"
-        model.save_model(str(output / filename))
-        model_files.append(filename)
-    manifest = {"selected": selected, "penalties": penalties, "models": model_files,
+    manifest = {"selected": selected, "penalties": penalties,
                 "collective_status": True,
                 "train": TRAIN, "development": DEV, "test": TEST,
+                "test_status": "Previously inspected reporting games; not a pristine holdout",
                 "development_results": candidates, "held_out": held_out,
                 "dfl_revision": dfl.REVISION}
-    (output / "benchmark.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    provenance = {
+        "purpose": "Reconstruction of the historical baseline; not recovered original weights",
+        "dfl_revision": dfl.REVISION,
+        "dfl_inputs": {path.name: fingerprint(path) for path in inputs},
+        "tactical_inputs": {name: fingerprint(path) for name, path in (tactical_inputs or {}).items()},
+        "split": {"train": TRAIN, "development": DEV, "reporting": TEST},
+        "lightgbm_params": TRAINING_PARAMS, "num_boost_round": NUM_BOOST_ROUND,
+        "training_stride": 4,
+        "augmentation": {"recipe": "historical independent position jitter, unchanged",
+                         "seed": "int(match[-2:], 36) * 10 + zero_based_half; stress adds 10000",
+                         "missing_fraction": {"degraded": 0.4, "stress": 0.5},
+                         "player_noise_std_m": {"degraded": 0.08, "stress": 0.14},
+                         "ball_noise_std_m": {"degraded": 0.15, "stress": 0.28},
+                         "missing_lengths_sha256": hashlib.sha256(missing.astype("<i8").tobytes()).hexdigest()},
+        "selection": {"family": "two_collective", "metric": "mean spellF1 on degraded/stress development",
+                      "penalties": [None, [5., 7.], [12., 16.], [25., 30.]]},
+    }
+    save_release(output, models[name], manifest, provenance)
     return manifest

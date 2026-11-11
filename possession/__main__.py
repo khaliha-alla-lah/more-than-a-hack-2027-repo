@@ -1,30 +1,21 @@
-"""Run the rules entry or train and run the selected external-data model."""
+"""Generate a validated possession CSV from a frozen release or the rules baseline."""
 
 import argparse
 import csv
-import json
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 import numpy as np
 
 from evaluation import possession_metrics as pm
-from games import GAME, half_video_blocks
-from starter.baseline import write_submission
+from games import GAME, half_video_blocks, require
 from starter.load_smart_tagging import KICKOFF_VIDEO_FRAMES, load as load_tags
 
 from .decode import decode, rules
 from .features import extract
 from .learn import collective_matrix, matrix, predict
+from .release import load_models, run_receipt, write_json
 from .tracking import load_metrica
-
-
-def load_models(directory):
-    import lightgbm as lgb
-
-    manifest = json.loads((directory / "benchmark.json").read_text(encoding="utf-8"))
-    models = [lgb.Booster(model_file=str(directory / name)) for name in manifest["models"]]
-    return models, manifest["penalties"], manifest.get("collective_status", False)
 
 
 def diagnostics(path, rows):
@@ -70,7 +61,10 @@ def generate(tracking, output, models=None, penalties=(5., 7.), collective=False
     with NamedTemporaryFile(dir=output.parent, suffix=".csv", delete=False) as temporary:
         pending = Path(temporary.name)
     try:
-        write_submission(str(pending), labels)
+        # Explicit UTF-8/LF makes the file contract independent of the host OS.
+        with pending.open("w", encoding="utf-8", newline="\n") as stream:
+            stream.write("frame,label\n")
+            stream.writelines(f"{frame},{label}\n" for frame, label in enumerate(labels))
         problem = pm.validate_submission(pm.read_label_csv(pending), len(labels))
         if problem:
             raise ValueError(problem)
@@ -85,7 +79,7 @@ def generate(tracking, output, models=None, penalties=(5., 7.), collective=False
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--fit", action="store_true", help="Train, evaluate and generate")
+    mode.add_argument("--fit", action="store_true", help="Train then infer (prefer python -m possession.train)")
     mode.add_argument("--rules", action="store_true", help="Generate without a learned model")
     parser.add_argument("--data", type=Path, help="Directory containing tactical/ and broadcast/")
     parser.add_argument("--dfl", type=Path, default=Path("data/idsse"))
@@ -94,16 +88,29 @@ def main():
     parser.add_argument("--diagnostics", type=Path, help="Local CSV of uncertain transitions")
     args = parser.parse_args()
 
-    tracking = load_metrica(args.data)
-    if args.fit:
-        from .benchmark import fit_and_evaluate
+    try:
+        if args.fit:
+            from .train import train
 
-        fit_and_evaluate(args.dfl, tracking, args.model_dir)
-    models, penalties, collective = (None, (5., 7.), False) if args.rules else load_models(args.model_dir)
-    tags = []
-    if args.diagnostics:
-        tags = [tag for tag in load_tags(data_dir=args.data) if tag["code"] == "SET PIECES"]
-    generate(tracking, args.output, models, penalties, collective, args.diagnostics, tags)
+            train(args.data, args.dfl, args.model_dir)
+        # Fail before loading the large tracking file if the release is missing or invalid.
+        models, penalties, collective = (None, (5., 7.), False) if args.rules else load_models(args.model_dir)
+        input_paths = require(["atd_meta", "atd_raw"], data_dir=args.data)
+        tracking = load_metrica(args.data)
+        tags = []
+        if args.diagnostics:
+            if args.diagnostics.resolve() == args.output.resolve():
+                raise ValueError("Diagnostics and submission must use different paths")
+            tags = [tag for tag in load_tags(data_dir=args.data) if tag["code"] == "SET PIECES"]
+        generate(tracking, args.output, models, penalties, collective, args.diagnostics, tags)
+        receipt = run_receipt(args.output, dict(zip(("tactical_metadata", "tactical_tracking"), input_paths)),
+                              mode="rules" if args.rules else "learned", penalties=penalties,
+                              model_dir=None if args.rules else args.model_dir, rows=len(tracking.ball))
+        receipt_path = args.output.with_suffix(args.output.suffix + ".manifest.json")
+        write_json(receipt_path, receipt)
+        print(f"SHA-256 {receipt['output']['sha256']}\nRun receipt: {receipt_path}", flush=True)
+    except (OSError, ValueError, RuntimeError) as error:
+        parser.exit(1, f"Possession error: {error}\n")
 
 
 if __name__ == "__main__":
