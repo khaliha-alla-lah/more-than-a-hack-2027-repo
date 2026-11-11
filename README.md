@@ -8,6 +8,13 @@ engineers. You are given one complete LaLiga match — two camera feeds, automat
 player and the ball, automatic tactical tagging, and the camera-to-pitch geometry — and one
 question to answer with it.
 
+**Team implementation:** the custom tracking-to-possession pipeline is in `possession/`.
+See [POSSESSION.md](POSSESSION.md) for setup, prerequisite checks, separate training and
+inference commands, and release manifests. The rules baseline is reproducible locally;
+the historical learned weights are absent and must be reconstructed from the pinned
+external DFL data. [Phase 1 status](docs/PHASE1_REPRODUCTION.md) records what has actually
+been verified and what remains unavailable.
+
 ---
 
 ## The task
@@ -126,6 +133,8 @@ Full description of every asset and how the frames line up: **[DATA.md](DATA.md)
 
 ```
 games.py                    per-match constants, asset paths and the frame alignment
+possession/                 team implementation: features, training, releases and inference
+tests/                      synthetic reproduction checks, without competition labels
 evaluation/
   possession_metrics.py     the metric library — every number on the board is defined here
   run_evaluation.py         the scorer. This exact file produces the official result

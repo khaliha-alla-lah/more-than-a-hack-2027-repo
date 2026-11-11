@@ -6,13 +6,14 @@ from pathlib import Path
 
 import numpy as np
 
-from games import GAME, half_video_blocks
+from games import GAME, half_video_blocks, require
 from . import dfl
 from .benchmark import nearest, score
 from .corruption import corrupt
 from .decode import decode, rules
 from .features import extract
-from .learn import collective_matrix, fit, gaps, matrix
+from .learn import NUM_BOOST_ROUND, TRAINING_PARAMS, collective_matrix, fit, gaps, matrix
+from .release import check_destination, fingerprint, save_release
 from .tracking import load_metrica
 
 
@@ -66,18 +67,30 @@ def training_rows(directory, lengths, matches, scenarios):
 
 
 def fit_candidate(directory, data, model_dir, matches, scenario, collective):
+    check_destination(model_dir)
     training = training_rows(directory, gap_lengths(data), matches, (scenario,))
     rows = [training[match][condition] for match in matches for condition in ("clean", scenario)]
     x, y, motion = (np.concatenate([row[column] for row in rows]) for column in range(3))
     models = fit(x, y, status=motion if collective else None)
-    model_dir.mkdir(parents=True, exist_ok=True)
-    names = ("live.txt", "team.txt")
-    for model, name in zip(models, names, strict=True):
-        model.save_model(str(model_dir / name))
-    manifest = {"models": names, "penalties": PENALTIES, "collective_status": collective,
+    manifest = {"selected": f"{scenario}/{'collective' if collective else 'full'}",
+                "penalties": PENALTIES, "collective_status": collective,
                 "train": matches, "corruption": SCENARIOS[scenario],
                 "dfl_revision": dfl.REVISION}
-    (model_dir / "benchmark.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    inputs = [path for match in matches for path in dfl.paths(directory, match)]
+    tactical = require(["atd_meta", "atd_raw"], data_dir=data)
+    provenance = {
+        "purpose": "Experimental corruption candidate; not a historical baseline reconstruction",
+        "dfl_revision": dfl.REVISION, "train": list(matches),
+        "dfl_inputs": {path.name: fingerprint(path) for path in inputs},
+        "tactical_inputs": {name: fingerprint(path) for name, path in
+                            zip(("metadata", "tracking"), tactical)},
+        "lightgbm_params": TRAINING_PARAMS, "num_boost_round": NUM_BOOST_ROUND,
+        "training_stride": 4, "training_scenarios": ["clean", scenario],
+        "augmentation": SCENARIOS[scenario],
+        "seed": "417 + index_in_train_matches * 10 + zero_based_half",
+        "penalties": PENALTIES,
+    }
+    save_release(model_dir, models, manifest, provenance)
 
 
 def run(directory, data, output, matches, seeds):

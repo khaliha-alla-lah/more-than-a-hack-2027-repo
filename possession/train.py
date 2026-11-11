@@ -10,9 +10,9 @@ from .release import check_destination
 
 def train(data_dir, dfl_dir, model_dir):
     check_destination(model_dir)
-    from . import dfl
+    from .external import MATCHES, paths as dfl_paths
 
-    missing = [str(path) for match in dfl.MATCHES for path in dfl.paths(dfl_dir, match)
+    missing = [str(path) for match in MATCHES for path in dfl_paths(dfl_dir, match)
                if not path.is_file()]
     if missing:
         raise FileNotFoundError("Missing DFL inputs. Run python -m possession.fetch_dfl --output "

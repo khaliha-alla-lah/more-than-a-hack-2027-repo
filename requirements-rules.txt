@@ -1,0 +1,7 @@
+# Rules inference and reproduction tests: verified on Python 3.11 / macOS arm64.
+# Includes transitive dependencies so a fresh environment is reproducible.
+numpy==2.4.6
+pandas==3.0.6
+python-dateutil==2.9.0.post0
+six==1.17.0
+tzdata==2026.5

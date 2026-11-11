@@ -13,11 +13,12 @@ from .schema import FEATURE_NAMES, feature_schema
 
 ROOT = Path(__file__).resolve().parents[1]
 FORMAT_VERSION = 1
-PACKAGES = ("numpy", "pandas", "scipy", "lightgbm", "python-dateutil", "tzdata")
+PACKAGES = ("numpy", "pandas", "scipy", "lightgbm", "python-dateutil", "six", "tzdata")
 # Changes to these files require an explicit new release, even if widths stay equal.
 INFERENCE_FILES = (
     "possession/features.py", "possession/schema.py", "possession/tracking.py",
     "possession/learn.py", "possession/decode.py", "possession/__main__.py",
+    "possession/release.py",
     "games.py", "starter/baseline.py", "starter/load_smart_tagging.py",
     "evaluation/possession_metrics.py",
 )
@@ -116,12 +117,14 @@ def read_manifest(directory, verify_source=True):
                                 "python -m possession.train, or use --rules. "
                                 "A legacy benchmark.json alone is not a verified release.")
     manifest = json.loads(path.read_text(encoding="utf-8"))
-    if manifest.get("format_version") != FORMAT_VERSION or manifest.get("labels") != ["H", "A", "D"]:
+    if not isinstance(manifest, dict) or manifest.get("format_version") != FORMAT_VERSION or manifest.get("labels") != ["H", "A", "D"]:
         raise ValueError("Unsupported model release format or label order")
     collective = manifest.get("collective_status")
     if type(collective) is not bool or manifest.get("feature_schema") != feature_schema(collective):
         raise ValueError("Model feature schema does not match this implementation")
-    penalties = manifest.get("penalties")
+    if "penalties" not in manifest:
+        raise ValueError("Release is missing decoder penalties")
+    penalties = manifest["penalties"]
     if penalties is not None and (not isinstance(penalties, list) or len(penalties) != 2 or
             any(type(value) not in (int, float) or not math.isfinite(value) or value < 0
                 for value in penalties)):
@@ -132,6 +135,8 @@ def read_manifest(directory, verify_source=True):
     widths = [len(FEATURE_NAMES)] if len(entries) == 1 else [len(manifest["feature_schema"]["status"]), len(FEATURE_NAMES)]
     names = set()
     for entry, width in zip(entries, widths):
+        if not isinstance(entry, dict):
+            raise ValueError("Each model entry must describe a file and its checksum")
         name = entry.get("file", "")
         if not name or Path(name).name != name or name in names or name in (".", ".."):
             raise ValueError("Model filenames must be distinct files inside the release")
@@ -155,7 +160,7 @@ def load_models(directory):
     manifest = read_manifest(directory)
     try:
         import lightgbm as lgb
-    except ImportError as error:
+    except (ImportError, OSError) as error:
         raise RuntimeError("Learned inference needs LightGBM; install requirements-possession.txt") from error
     models = [lgb.Booster(model_file=str(Path(directory) / entry["file"]))
               for entry in manifest["models"]]

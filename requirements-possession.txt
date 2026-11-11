@@ -1,7 +1,5 @@
-# Tested with 64-bit Python 3.14 on Windows.
+# Phase-one reconstruction environment, Python 3.11+.
+# Rules dependencies are verified locally; LightGBM training still needs validation.
+-r requirements-rules.txt
 lightgbm==4.6.0
-numpy==2.4.4
-pandas==3.0.2
-python-dateutil==4.0.0
 scipy==1.17.1
-tzdata==2026.6

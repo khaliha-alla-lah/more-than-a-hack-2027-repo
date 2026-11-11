@@ -1,7 +1,7 @@
 """Check inference or training prerequisites without loading restricted tracking rows."""
 
 import argparse
-import importlib.util
+import importlib
 import json
 from pathlib import Path
 
@@ -15,8 +15,10 @@ def inspect(data_dir=None, model_dir=Path("data/possession-model"),
     issues = []
     packages = ("numpy", "pandas") if rules else ("numpy", "pandas", "lightgbm")
     for name in packages:
-        if importlib.util.find_spec(name) is None:
-            issues.append(f"Missing Python package: {name}")
+        try:
+            importlib.import_module(name)
+        except (ImportError, OSError) as error:
+            issues.append(f"Python package unavailable: {name} ({error})")
     paths = asset_paths(data_dir=data_dir)
     files = {name: {"path": str(paths[name]), "exists": Path(paths[name]).is_file()}
              for name in ("atd_meta", "atd_raw")}
