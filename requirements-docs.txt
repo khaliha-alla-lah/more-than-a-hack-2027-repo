@@ -1,0 +1,2 @@
+# Optional PDF-generation dependency; not needed for submission inference.
+reportlab==4.4.9

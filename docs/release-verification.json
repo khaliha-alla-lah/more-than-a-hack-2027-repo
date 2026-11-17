@@ -1,0 +1,15 @@
+{
+  "team": "khaliha aala lah",
+  "rows": 199319,
+  "csv_sha256": "fa313d146666e97536e86b33eb3555e05e6823efb1c91afc2f8941cd13fffe7b",
+  "python": "3.14.2",
+  "numpy": "2.5.4",
+  "pandas": "3.1.1",
+  "scikit_learn": "1.8.0",
+  "clean_environment_export": true,
+  "index_snapshot_export": true,
+  "snapshot_contains_ground_truth_files": false,
+  "regression_tests_passed": 3,
+  "checkpoint_namespaces": "possession.vendor.tracking.core.classifiers",
+  "upload_files_committed": false
+}
