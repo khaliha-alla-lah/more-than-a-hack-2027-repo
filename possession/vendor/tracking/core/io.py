@@ -1,4 +1,3 @@
-# See possession/vendor/tracking/PROVENANCE.md for source and adaptation notes.
 """Read the challenge's FIFA/EPTS tracking into per-frame coordinates in metres.
 
 The metadata's DataFormatSpecification defines channel order for each frame range.

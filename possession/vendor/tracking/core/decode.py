@@ -1,4 +1,3 @@
-# See possession/vendor/tracking/PROVENANCE.md for source and adaptation notes.
 """From per-frame probabilities to possessions: a three-state Viterbi decode per half.
 
 A possession is an interval, and the ranking metric scores intervals, so the last step has to

@@ -1,4 +1,3 @@
-# See possession/vendor/tracking/PROVENANCE.md for source and adaptation notes.
 """Per-frame features from team-level tracking.
 
 Everything here is a function of the tracking alone (positions, speeds, team of each slot, the

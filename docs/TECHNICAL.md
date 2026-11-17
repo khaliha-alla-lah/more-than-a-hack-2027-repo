@@ -65,7 +65,7 @@ used for training or parameter selection. Small wrong-position gains do not prov
 that false detections are solved. These results do not establish private-match
 performance or ranking.
 
-## Reproduction and provenance
+## Reproduction
 
 Install `requirements-submission.txt`, then run:
 
@@ -74,5 +74,4 @@ Install `requirements-submission.txt`, then run:
 Expected output: 199,319 rows, exactly `frame,label`, SHA-256
 `fa313d146666e97536e86b33eb3555e05e6823efb1c91afc2f8941cd13fffe7b`.
 The loader verifies checkpoint hashes; the exporter verifies CSV format and checksum.
-The technical implementation adapts the source credited in THIRD_PARTY_NOTICES.md;
-original notices are retained. Match data and local research artifacts are excluded.
+The output is generated deterministically from the frozen checkpoints and tactical inputs.

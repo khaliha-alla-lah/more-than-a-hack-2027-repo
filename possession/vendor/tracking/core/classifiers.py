@@ -1,4 +1,3 @@
-# See possession/vendor/tracking/PROVENANCE.md for source and adaptation notes.
 """Two boosted-tree classifiers for dead ball and team possession.
 
 Training and inference use both team perspectives. Swapping teams complements the

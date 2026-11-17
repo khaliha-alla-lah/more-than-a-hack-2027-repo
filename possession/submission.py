@@ -1,4 +1,4 @@
-"""Frozen submission inference; no training, labels, or research-directory imports."""
+"""Frozen possession submission inference."""
 import argparse
 from dataclasses import replace
 import hashlib
