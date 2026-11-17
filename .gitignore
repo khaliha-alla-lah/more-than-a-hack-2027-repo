@@ -62,3 +62,9 @@ __pycache__/
 venv/
 env/
 .DS_Store
+
+# Local research, submission uploads, and document rendering scratch.
+/.user/
+/submission-output/
+/output/
+/tmp/
